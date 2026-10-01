@@ -37,3 +37,10 @@ vignettes/*.pdf
 
 /.quarto/
 .vscode/settings.json
+
+# Configuração local
+/.env
+/.venv/
+
+# saidas json
+*.json

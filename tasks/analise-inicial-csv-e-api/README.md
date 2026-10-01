@@ -6,6 +6,14 @@
 
 O objetivo deste notebook é **consultar e salvar o JSON bruto para validar a cobertura**, não produzir ainda uma tabela final de medicamentos e fornecedores.
 
+## Configuração
+
+O arquivo de configuração local fica na raiz do repositório (`../../.env` a partir desta pasta). Ele é ignorado pelo Git. Para preparar outro ambiente, copie `../../.env.example` para `../../.env` e ajuste os valores. `consulta_api.py` carrega esse arquivo automaticamente; o notebook não precisa carregá-lo de novo.
+
+## Ambiente Python
+
+O ambiente virtual fica na raiz do repositório, em `../../.venv`. No VS Code, selecione `../../.venv/Scripts/python.exe` como kernel dos notebooks. Essa pasta é ignorada pelo Git; em outro computador, recrie o ambiente na raiz e instale as dependências de `requirements.txt`.
+
 ## Dados do CSV e três casos de teste
 
 O [CSV](inputs/consulta-contratacoes-20260930162835.csv) tem 1.515 contratações, 55 colunas e 1.515 números PNCP distintos. Todas as unidades compradoras estão no DF, mas apenas 320 registros são da esfera **Distrital**; 1.084 são federais. Uma triagem textual no objeto encontrou 104 **candidatos** a medicamento entre os distritais. Isso não substitui a classificação dos itens: há falsos positivos e falsos negativos.

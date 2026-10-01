@@ -10,7 +10,7 @@ import requests
 from dotenv import load_dotenv
 
 
-load_dotenv(Path(__file__).resolve().parent / ".env")
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 BASE_URL = os.getenv("COMPRAS_API_BASE_URL", "https://dadosabertos.compras.gov.br").rstrip("/")
 TIMEOUT = int(os.getenv("API_TIMEOUT_SECONDS", "30"))
 ROTA_OCDS = "/modulo-ocds/1_releases"
