@@ -1,0 +1,4 @@
+project:
+  output-dir: docs
+  post-render:
+    - _post-copy.R

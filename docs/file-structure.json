@@ -1,0 +1,12 @@
+{
+  ".": [
+    {
+      "path": "index.html"
+    }
+  ],
+  "tasks/task1/docs": [
+    {
+      "path": "tasks/task1/docs/template-quarto.html"
+    }
+  ]
+}

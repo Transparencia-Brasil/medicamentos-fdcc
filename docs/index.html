@@ -1,0 +1,148 @@
+---
+title: Índice
+---
+
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relatórios de Análises PNCP</title>
+    <link rel="stylesheet" href="style-rmarkdown.css">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", Arial, sans-serif;
+            max-width: 800px;
+            margin: 2em auto;
+            padding: 0 1em;
+            line-height: 1.5;
+        }
+        .task-group {
+            margin-bottom: 2em;
+        }
+        .task-title {
+            font-weight: bold;
+            margin-bottom: 0.5em;
+        }
+        ul {
+            list-style-type: none;
+            padding-left: 1em;
+        }
+        a {
+            color: #0366d6;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+  <h1>Relatórios de Análises PNCP</h1>
+
+  <div class="task-group"></div>
+  <h2>Relatórios Disponíveis</h2>
+
+    <div id="file-list">
+      <!-- Este conteúdo será preenchido dinamicamente via JavaScript -->
+    </div>
+
+    <script>
+      // Função para organizar e exibir arquivos por diretório
+      async function displayFiles() {
+        const fileList = document.getElementById('file-list');
+
+        // Função auxiliar para criar elemento HTML da lista de arquivos
+        function createTaskGroup(title, files) {
+          // Cria um elemento div container para o grupo de tarefas
+          const div = document.createElement('div');
+          div.className = 'task-group';
+
+          // Cria o elemento div para o título do grupo
+          const titleDiv = document.createElement('div');
+          titleDiv.className = 'task-title';
+          titleDiv.textContent = title;
+
+          // Cria uma lista não ordenada (ul) para armazenar os arquivos
+          const ul = document.createElement('ul');
+
+          // Itera sobre cada arquivo no array de arquivos
+          files.forEach(file => {
+            // Para cada arquivo, cria um item de lista (li)
+            const li = document.createElement('li');            // Cria um link (a) para o arquivo
+            const a = document.createElement('a');
+            a.href = file.path;  // Define o caminho do arquivo como URL do link
+
+            // Define o texto do link:
+            // Se não houver nome definido, usa o próprio path
+            // 1. Pega o nome do arquivo do path (último segmento)
+            // 2. Remove a extensão .html
+            const fileName = file.path.split('/').pop();
+            a.textContent = fileName.replace('.html', '');
+
+            // Adiciona o link ao item da lista
+            li.appendChild(a);
+            // Adiciona o item à lista não ordenada
+            ul.appendChild(li);
+          });
+
+          div.appendChild(titleDiv);
+          div.appendChild(ul);
+          return div;
+        }
+
+        try {
+          const response = await fetch('file-structure.json');
+          if (!response.ok) {
+            throw new Error('Erro ao carregar estrutura de arquivos');
+          }
+          const fileStructure = await response.json();
+
+          // Criar e adicionar grupos de arquivos
+          for (const [dir, files] of Object.entries(fileStructure)) {
+            fileList.appendChild(createTaskGroup(dir, files));
+          }
+
+        } catch (error) {
+          console.error('Erro ao carregar a estrutura de arquivos:', error);
+          fileList.innerHTML = '<p>Erro ao carregar a estrutura de arquivos.</p>';
+        }
+      }
+
+            // Executar ao carregar a página
+            displayFiles();
+          </script>
+        </div>
+
+  <div class="task-group">
+    <h2>Links Úteis</h2>
+    <ul>
+      <li><a href="https://github.com/Transparencia-Brasil/" id="repo-link">Repositório no GitHub</a></li>
+      <li><a href="https://www.transparencia.org.br">Transparência Brasil</a></li>
+    </ul>
+    <script>
+      // Atualiza dinamicamente o link do repositório baseado na URL atual
+      const repoLink = document.getElementById('repo-link');
+      const pathSegments = window.location.pathname.split('/');
+      const repoName = pathSegments[pathSegments.length - 2]; // Assume que está em /repo-name/docs/
+      repoLink.href = `https://github.com/Transparencia-Brasil/${repoName}`;
+    </script>
+  </div>
+
+  <footer>
+    <p>Última atualização:
+      <script>
+          const options = {
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric'
+            };
+            const lastMod = new Date(document.lastModified).toLocaleDateString('pt-BR', options);
+            document.write(lastMod);
+          </script>
+      </p>
+      </footer>
+
+</body>
+</html>
+
