@@ -52,4 +52,10 @@ vignettes/*.pdf
 /tasks/analise-inicial-csv-e-api/**/.env.local
 /tasks/analise-inicial-csv-e-api/output/*.json
 /tasks/analise-inicial-csv-e-api/inputs/*.csv
-/tasks/analise-inicial-csv-e-api/inputs/*.gz
+/tasks/analise-inicial-csv-e-api/inputs/*.jsonl.gz
+
+# Base de compras usada na análise local
+/tasks/analise-inicial-csv-e-api/docs/inputs/brazil_compras_2025.jsonl.gz
+
+# Artefatos gerados pelo pipeline OCDS (dados, ZIPs e logs)
+/tasks/mapeamento-ocds/output/
