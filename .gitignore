@@ -44,3 +44,12 @@ vignettes/*.pdf
 
 # saidas json
 *.json
+
+# Arquivos locais da análise inicial de CSV e API
+/tasks/analise-inicial-csv-e-api/**/.venv/
+/tasks/analise-inicial-csv-e-api/**/__pycache__/
+/tasks/analise-inicial-csv-e-api/**/.ipynb_checkpoints/
+/tasks/analise-inicial-csv-e-api/**/.env.local
+/tasks/analise-inicial-csv-e-api/output/*.json
+/tasks/analise-inicial-csv-e-api/inputs/*.csv
+/tasks/analise-inicial-csv-e-api/inputs/*.gz
