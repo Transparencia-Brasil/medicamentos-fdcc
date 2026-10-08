@@ -1,0 +1,86 @@
+﻿<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Contratos no endpoint OCDS | Diagnóstico inicial</title>
+  <style>
+    :root { color-scheme: light; --ink:#172b39; --muted:#526775; --line:#d8e3e7; --paper:#ffffff; --bg:#f2f6f7; --blue:#12677b; --soft:#e7f3f5; --amber:#a16305; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif; }
+    main { max-width:880px; margin:0 auto; padding:36px 20px 64px; }
+    header { padding:30px 32px; border-radius:18px; background:#113e51; color:white; }
+    h1 { margin:0 0 8px; font-size:clamp(1.7rem,4vw,2.4rem); line-height:1.2; }
+    header p { margin:0; color:#d7eaee; }
+    .eyebrow { margin:0 0 10px; text-transform:uppercase; letter-spacing:.11em; font-size:.75rem; font-weight:700; color:#a8dfe8; }
+    section { margin-top:18px; padding:24px 28px; border:1px solid var(--line); border-radius:16px; background:var(--paper); }
+    h2 { margin:0 0 12px; font-size:1.2rem; color:#134d5d; }
+    p { margin:0 0 12px; } p:last-child { margin-bottom:0; }
+    ul,ol { margin:0; padding-left:1.3rem; } li+li { margin-top:8px; }
+    code { padding:2px 5px; border-radius:5px; background:var(--soft); font-size:.92em; overflow-wrap:anywhere; }
+    .callout { border-left:4px solid var(--amber); background:#fff8ea; }
+    .flow { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin:16px 0 0; }
+    .flow div { padding:11px 8px; border-radius:9px; background:var(--soft); text-align:center; font-size:.85rem; font-weight:700; }
+    a { color:var(--blue); } a:hover { text-decoration-thickness:2px; }
+    .small { color:var(--muted); font-size:.9rem; }
+    @media(max-width:660px) { main{padding:16px 12px 40px;} header,section{padding:20px;} .flow{grid-template-columns:1fr;} }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="eyebrow">Diagnóstico inicial · 6 de outubro de 2026</div>
+    <h1>Como incluir contratos na API OCDS</h1>
+    <p>O que foi verificado e qual seria o caminho de implementação, sem acesso ao código ou ao banco da API.</p>
+  </header>
+
+  <section>
+    <h2>Resposta curta</h2>
+    <p><strong>Sim: nos exemplos examinados, os contratos não vêm no endpoint OCDS.</strong> Mais que isso, o esquema público de <code>ReleaseDTO</code> declara <code>tender</code> e <code>awards</code>, mas não declara <code>contracts</code>. Isso indica que a publicação de contratos ainda precisa ser incorporada ao modelo e à montagem das releases.</p>
+    <p class="small">Limite: sem o repositório e a origem dos dados, não é possível afirmar se os contratos já existem internamente, se falta uma junção ou se falta ingestão.</p>
+  </section>
+
+  <section>
+    <h2>Evidências observadas</h2>
+    <ul>
+      <li>Os três arquivos <code>resposta_1.json</code>, <code>resposta_2.json</code> e <code>resposta_3.json</code> somam <strong>23 releases</strong>; nenhuma contém a chave <code>contracts</code>.</li>
+      <li>O arquivo <code>mock_compras.json</code> tem <strong>150 compras</strong>, das quais 119 têm ao menos um lote <code>Homologado</code>. Nenhuma release contém <code>contracts</code>. As 150 consultas ao endpoint de contratos por <code>idCompra</code> terminaram com HTTP 200 e <code>resultado: []</code>; 21 delas precisaram ser repetidas após respostas temporárias HTTP 429.</li>
+      <li>O esquema público do módulo de contratos inclui <code>idCompra</code> e <code>numeroControlePncpCompra</code>. Essas são chaves candidatas para ligar as duas fontes, sujeitas a conferência dos valores reais e da cobertura.</li>
+    </ul>
+    <p class="small">A amostra <code>mock_compras.json</code> reúne diferentes compradores, com predominância da Câmara dos Deputados e do Senado Federal; não foi selecionada para medir a cobertura de contratos de medicamentos de órgãos distritais.</p>
+  </section>
+
+  <section class="callout">
+    <h2>Uma distinção importante</h2>
+    <p><code>statusDetails = Homologado</code> descreve uma etapa da compra; não comprova que um contrato tenha sido firmado ou publicado. No OCDS, <code>contracts</code> é o bloco com os contratos. Já <code>tag: ["contract"]</code> indica o tipo de publicação da release. Incluir o bloco em uma resposta compilada e publicar um novo evento de contrato são decisões distintas.</p>
+  </section>
+
+  <section>
+    <h2>Fluxo provável de implementação</h2>
+    <ol>
+      <li><strong>Localizar a origem dos contratos:</strong> identificar a tabela, visão ou serviço que alimenta o módulo 09; confirmar quais órgãos e tipos de instrumento estão cobertos e se o <code>idCompra</code> está preenchido.</li>
+      <li><strong>Validar a ligação:</strong> cruzar compras e contratos por <code>idCompra</code>; quando faltar, avaliar <code>numeroControlePncpCompra</code> e outros identificadores. Medir vínculos ausentes, duplicidades e a relação de um para muitos.</li>
+      <li><strong>Mapear para OCDS:</strong> adicionar <code>contracts[]</code> à release, com <code>id</code> estável, <code>awardID</code> apontando para o <code>awards[].id</code> correto, datas, valor, situação e documentos apenas quando disponíveis e semanticamente equivalentes.</li>
+      <li><strong>Publicar e testar:</strong> atualizar a montagem do JSON e o esquema OpenAPI; definir se o contrato entra na resposta compilada, em uma release com <code>tag: ["contract"]</code>, ou em ambas. Testar casos com zero, um e vários contratos, além de atualizações e cancelamentos.</li>
+    </ol>
+    <div class="flow" aria-label="Resumo do fluxo"><div>Fonte de contratos</div><div>Chave de vínculo</div><div>Mapeamento OCDS</div><div>Publicação na API</div><div>Validação</div></div>
+  </section>
+
+  <section>
+    <h2>Primeira conversa com a equipe da API</h2>
+    <p>O teste decisivo é localizar <strong>uma compra sabidamente contratada</strong> na origem do módulo 09 e verificar se ela aparece com o mesmo <code>idCompra</code> no módulo 11. Se aparecer no módulo 09 e não no OCDS, o foco é a transformação/publicação. Se não aparecer no módulo 09, o primeiro problema é cobertura, ingestão ou vínculo dos dados.</p>
+    <p>Também vale confirmar qual evento de negócio será chamado de “contrato”: assinatura de instrumento, empenho, ata de registro de preços ou outro. Eles não devem ser tratados automaticamente como equivalentes.</p>
+  </section>
+
+  <section>
+    <h2>Fontes</h2>
+    <ul>
+      <li><a href="https://dadosabertos.compras.gov.br/swagger-ui/index.html#/11%20-%20OCDS">Swagger da API Compras.gov.br: módulo OCDS</a> e <a href="https://dadosabertos.compras.gov.br/v3/api-docs">esquema OpenAPI</a>, consultados em 6/10/2026.</li>
+      <li><a href="https://dadosabertos.compras.gov.br/swagger-ui/index.html#/09%20-%20CONTRATOS">Swagger da API: módulo Contratos</a>.</li>
+      <li><a href="https://standard.open-contracting.org/latest/en/schema/reference/">Referência OCDS 1.1.5</a>: campos <code>contracts</code>, <code>awardID</code> e <code>awards</code>; <a href="https://standard.open-contracting.org/latest/en/schema/codelists/">lista de tags</a>.</li>
+      <li>Arquivos locais: <code>tasks/analise-inicial-csv-e-api/docs/output/</code>.</li>
+    </ul>
+  </section>
+</main>
+</body>
+</html>
