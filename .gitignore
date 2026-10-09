@@ -59,3 +59,4 @@ vignettes/*.pdf
 
 # Artefatos gerados pelo pipeline OCDS (dados, ZIPs e logs)
 /tasks/mapeamento-ocds/output/
+/tasks/mapeamento-ocds/input/*.csv
