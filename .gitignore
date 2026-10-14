@@ -59,3 +59,9 @@ vignettes/*.pdf
 
 # Artefatos gerados pelo pipeline OCDS (dados, ZIPs e logs)
 /tasks/mapeamento-ocds/output/
+
+# Coletor de contratações: downloads temporários e saídas
+/tasks/coleta-contratacoes/tmp/
+/tasks/coleta-contratacoes/outputs/*
+!/tasks/coleta-contratacoes/outputs/.gitkeep
+/tasks/coleta-contratacoes/**/__pycache__/
