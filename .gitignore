@@ -59,4 +59,16 @@ vignettes/*.pdf
 
 # Artefatos gerados pelo pipeline OCDS (dados, ZIPs e logs)
 /tasks/mapeamento-ocds/output/
-/tasks/mapeamento-ocds/input/*.csv
+
+# CSVs de contratações e itens usados como entrada do mapeamento OCDS
+/tasks/mapeamento-ocds/input/contratacoes.csv
+/tasks/mapeamento-ocds/input/itens-medicamentos.csv
+/tasks/mapeamento-ocds/input/itens-medicamentos-resultados.csv
+
+# Coletor de contratos: saídas e logs
+/tasks/coleta-contratos/outputs/*
+!/tasks/coleta-contratos/outputs/.gitkeep
+
+# Coletor de contratações: saídas e logs
+/tasks/coleta-contratacoes/outputs/*
+!/tasks/coleta-contratacoes/outputs/.gitkeep
