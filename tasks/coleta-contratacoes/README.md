@@ -1,51 +1,96 @@
 # Coleta de contratações (OCDS · Compras.gov.br)
 
-Baixa os processos de contratação do Compras.gov.br em formato [OCDS](https://standard.open-contracting.org/) e mantém só os de compradores sediados no **DF**.
+Baixa os processos de contratação do Compras.gov.br em formato
+[OCDS](https://standard.open-contracting.org/), mantém só os de compradores
+sediados no **DF** e os salva em `outputs/` como CSVs (contratações, itens e
+adjudicações), junto com as releases OCDS originais selecionadas.
 
-## Fonte
+A coleta em si é feita pelo repositório
+[coletor-contratacoes](https://github.com/Transparencia-Brasil/coletor-contratacoes).
+Esta task só o chama, define onde as saídas serão salvas e guarda o log.
 
-[OCP Data Registry, publicação 157](https://data.open-contracting.org/en/publication/157). Os dados são do Compras.gov.br (SEGES/MGI), com licença CC BY 4.0. A OCP disponibiliza um arquivo `.jsonl.gz` por ano, de 2021 em diante, e o atualiza mensalmente. Cada linha é um processo (release compilada) com a licitação (`tender`) e as adjudicações (`awards`).
+## Fonte e filtro
 
-O arquivo do ano cobre o país todo. Por isso o coletor baixa o ano inteiro para `tmp/`, lê linha a linha e filtra.
+- [OCP Data Registry, publicação 157](https://data.open-contracting.org/en/publication/157):
+  dados do Compras.gov.br (SEGES/MGI), sob licença CC BY 4.0. Há um arquivo
+  `.jsonl.gz` por ano, de 2021 em diante, atualizado mensalmente pela OCP.
+- O arquivo do ano cobre o país todo (154 MB em 2026 e 379 MB em 2025). O
+  coletor baixa o ano inteiro, filtra e apaga o download ao final, então toda
+  execução baixa o arquivo de novo.
+- Um processo é mantido quando a parte compradora (`buyer`) tem
+  `address.region == "DF"`. Por padrão entram todas as esferas, e a esfera fica
+  na coluna `comprador_esfera` de `contratacoes.csv`. Para restringir já na
+  coleta, use `--esferas`.
 
-## Filtro
+No arquivo de 2026 baixado em 03/11/2026, foram 12.594 processos no DF, 1.459
+deles distritais.
 
-O coletor mantém o processo quando a parte compradora (`buyer`) tem `address.region == "DF"`. Isso inclui todas as esferas: federal, distrital e outras. A esfera vem na coluna `comprador_esfera` de `contratacoes.csv`, para filtrar depois. Para restringir já na coleta, use `--esferas Distrital`.
+## Pré-requisitos
 
-Em 2026, até a atualização de set/2026, o arquivo trouxe 11.732 processos no DF: 9.693 federais, 1.386 distritais, 648 de outras esferas ("Não se Aplica", como a EBSERH) e 5 estaduais.
+1. Um clone local do `coletor-contratacoes`, com o `.venv` dele criado e as
+   dependências instaladas (ver o README daquele repositório).
+2. A variável `COLETOR_CONTRATACOES_DIR` no `.env` da raiz deste repositório,
+   apontando para esse clone. Um caminho relativo é resolvido a partir da raiz
+   deste repositório; uma variável definida no ambiente tem precedência.
+
+```bash
+COLETOR_CONTRATACOES_DIR=../coletor-contratacoes
+```
+
+O script funciona no Git Bash e no WSL. No WSL, prefira o caminho relativo
+acima: um caminho no formato `C:\...` não é entendido pelo Bash.
 
 ## Como rodar
 
-O ambiente Python fica na raiz do repositório (`.venv`).
+De qualquer pasta:
 
 ```bash
-pip install -r tasks/coleta-contratacoes/requirements.txt
-
 # um ou mais anos
-bash tasks/coleta-contratacoes/src/run-coleta-contratacoes.sh 2025 2026
+bash tasks/coleta-contratacoes/src/run-coleta-contratacoes.sh --anos 2025 2026
 
-# opções extras depois de "--"
-bash tasks/coleta-contratacoes/src/run-coleta-contratacoes.sh 2026 -- --esferas Distrital --alias DF-distrital-2026
+# só compradores distritais
+bash tasks/coleta-contratacoes/src/run-coleta-contratacoes.sh --anos 2026 --esferas Distrital
 
 # teste rápido: lê só as primeiras 5.000 linhas de cada ano
-python tasks/coleta-contratacoes/src/coleta_contratacoes.py --anos 2026 --limite 5000 --alias teste
+bash tasks/coleta-contratacoes/src/run-coleta-contratacoes.sh --anos 2026 --limite 5000
 ```
 
 | Opção | Padrão | Para quê |
 | --- | --- | --- |
-| `--anos` | ano atual | Anos a baixar (2021 em diante). |
+| `--anos` | ano atual | Um ou mais anos, de 2021 ao ano atual. |
 | `--uf` | `DF` | UF do comprador. |
-| `--esferas` | todas | Esferas a manter: `Federal`, `Distrital`, `Estadual`, `Municipal`, `"Não se Aplica"`. |
-| `--alias` | `DF-<anos>` | Subpasta de saída em `outputs/`. |
-| `--manter-download` | não | Mantém o `.jsonl.gz` em `tmp/` (por padrão é apagado se o ano der certo). |
-| `--forcar-download` | não | Baixa de novo mesmo que o arquivo já esteja em `tmp/`. |
+| `--esferas` | todas | Uma ou mais esferas: `Federal`, `Distrital`, `Estadual`, `Municipal`, `"Não se Aplica"`. |
 | `--limite` | — | Lê só as N primeiras linhas de cada ano. |
 
-Os downloads são grandes: 146 MB para 2026 e 379 MB para 2025. Com o arquivo já baixado, processar 2026 leva cerca de 30 s.
+Os valores são validados pelo coletor: ano fora do intervalo ou limite que não
+seja um inteiro positivo encerram com código 2 antes de acessar a fonte. Este
+script aceita só as opções acima e `--help`, que mostra a ajuda do coletor. O
+destino é definido pela task, por isso `--saida` não é aceito.
+
+Com o arquivo já baixado, processar 2026 leva cerca de 20 s; o download depende
+da conexão (alguns minutos para 2026).
 
 ## Saídas
 
-Ficam em `outputs/<alias>/`, que o Git ignora.
+Ficam em `outputs/`, que o Git ignora (exceto o `.gitkeep`). Cada execução cria
+uma pasta nova, com a data e a hora do início no nome, e nada é sobrescrito: as
+coletas se acumulam até serem removidas manualmente.
+
+```text
+outputs/
+├── {UF}[-{esferas}]-{anos}/{AAAAMMDD}_{HHMMSS}/
+│   ├── contratacoes.jsonl.gz
+│   ├── contratacoes.csv
+│   ├── itens.csv
+│   ├── adjudicacoes.csv
+│   ├── monitoramento.csv
+│   ├── erros.csv
+│   └── coleta.log
+└── LOGS/run-coleta-contratacoes-{UF}[-{esferas}]-{anos}-{AAAAMMDD}_{HHMMSS}.log
+```
+
+Exemplos de pasta: `outputs/DF-2025-2026/20261103_142300/` e
+`outputs/DF-Distrital-2026/20261103_142300/`.
 
 | Arquivo | Granularidade | Chave |
 | --- | --- | --- |
@@ -55,14 +100,27 @@ Ficam em `outputs/<alias>/`, que o Git ignora.
 | `adjudicacoes.csv` | um item adjudicado × fornecedor | `ocid` + `adjudicacao_id` + `item_id` + `fornecedor_id` |
 | `monitoramento.csv` | um ano processado (linhas lidas, selecionadas, duração, status) | `ano` |
 | `erros.csv` | linha ou ano com falha | — |
-| `coleta.log` | log da execução | — |
+| `coleta.log` | log do coletor | — |
 
-Em `itens.csv`, `codigo_catalogo` é o código CATMAT/CATSER. Ele serve para identificar medicamentos depois, por exemplo cruzando com `tasks/mapeamento-ocds/input/dicionario-medicamentos-ocds.csv`.
+O log em `LOGS/` registra os argumentos, o destino, o commit do
+`coletor-contratacoes` usado (com aviso se houver alterações locais nele) e toda
+a saída do coletor.
+
+Em `itens.csv`, `codigo_catalogo` é o código CATMAT/CATSER. Ele serve para
+identificar medicamentos depois, por exemplo cruzando com
+`tasks/mapeamento-ocds/input/dicionario-medicamentos-ocds.csv`.
+
+## Códigos de saída
+
+| Código | Situação |
+| --- | --- |
+| 0 | Todos os anos processados. |
+| 1 | Algum ano falhou no download ou na leitura (ver `erros.csv` e `monitoramento.csv`). |
+| 2 | Argumento inválido ou não aceito, coletor não encontrado ou pasta de destino já ocupada. |
 
 ## Limites conhecidos
 
-- **Cobertura:** só entram compras feitas pelo Compras.gov.br. No CSV do PNCP em `tasks/analise-inicial-csv-e-api/`, 319 das 320 contratações distritais (abr–ago/2026) foram publicadas por essa plataforma. Órgãos que usam outras plataformas ficam de fora.
-- **Defasagem:** a OCP baixa a fonte uma vez por mês. Processos publicados depois da última atualização só aparecem na seguinte. É o caso do misoprostol da SES/DF publicado em 30/09/2026.
-- **Etapas:** o arquivo traz licitação e adjudicação. Contratos e empenhos virão de outros coletores.
-- **Valores:** em `adjudicacoes.csv`, `valor_total_item` é quantidade × valor unitário do item, e `valor_adjudicacao` é o valor do *award* inteiro. Não some `valor_adjudicacao` por item.
-- **`valor_unitario_estimado = 0`** costuma indicar orçamento sigiloso (`orcamento_sigiloso = True`).
+- **Toda execução baixa o ano inteiro de novo:** o coletor não guarda o arquivo
+  baixado entre execuções.
+- **Um ano com falha não interrompe os demais:** a coleta segue para o ano
+  seguinte e termina com código 1. Confira `monitoramento.csv`.
