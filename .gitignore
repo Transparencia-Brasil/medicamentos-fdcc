@@ -59,3 +59,8 @@ vignettes/*.pdf
 
 # Artefatos gerados pelo pipeline OCDS (dados, ZIPs e logs)
 /tasks/mapeamento-ocds/output/
+
+# Coletor de contratos: saídas e logs
+/tasks/coleta-contratos/outputs/*
+!/tasks/coleta-contratos/outputs/.gitkeep
+

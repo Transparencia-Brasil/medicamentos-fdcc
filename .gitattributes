@@ -1,0 +1,2 @@
+# Scripts Bash da coleta de contratos com LF, para rodar também no WSL
+tasks/coleta-contratos/**/*.sh text eol=lf
