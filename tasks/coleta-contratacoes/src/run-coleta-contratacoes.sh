@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Baixa os arquivos anuais de contratações do Compras.gov.br em OCDS (JSON) com o
-# coletor-contratacoes e os descompacta em tasks/coleta-contratacoes/outputs/.
+# coletor-contratacoes, os descompacta em tasks/coleta-contratacoes/outputs/ e
+# separa os processos com comprador no DF (filtra_df.py), em JSON Lines e em
+# lista JSON formatada (jsonl_para_json.py).
 #
 # Uso (de qualquer pasta, no Git Bash ou no WSL):
 #   bash tasks/coleta-contratacoes/src/run-coleta-contratacoes.sh --anos 2026
@@ -10,10 +12,11 @@
 # da raiz (o ambiente tem precedência). O coletor é chamado uma vez por ano; um
 # ano com falha não interrompe os demais.
 #
-# Códigos de saída: 0 quando todos os anos foram baixados e descompactados; se
-# algum falhou, o maior código entre os anos (1 falha de rede, integridade ou
-# descompactação; 2 ano não publicado ou destino já existente); 2 também quando
-# o coletor não é encontrado ou um argumento é inválido.
+# Códigos de saída: 0 quando todos os anos foram baixados, descompactados,
+# filtrados e convertidos; se algum falhou, o maior código entre os anos (1 falha
+# de rede, integridade, descompactação, filtro ou conversão; 2 ano não publicado
+# ou destino já existente); 2 também quando o coletor ou o Python não são
+# encontrados ou um argumento é inválido.
 
 set -euo pipefail
 
@@ -30,7 +33,8 @@ uso() {
 Uso: bash tasks/coleta-contratacoes/src/run-coleta-contratacoes.sh [--anos ANO ...]
 
 Baixa os arquivos anuais da publicação 157 (Compras.gov.br, OCDS em JSON) com o
-coletor-contratacoes e os descompacta em tasks/coleta-contratacoes/outputs/{ano}/.
+coletor-contratacoes, os descompacta em tasks/coleta-contratacoes/outputs/{ano}/
+e separa os processos com comprador no DF em *_df.jsonl e *_df.json.
 
   --anos ANO ...   Um ou mais anos, com quatro dígitos. Padrão: o ano atual.
 USO
@@ -67,6 +71,22 @@ esac
 WRAPPER="$COLETOR_CONTRATACOES_DIR/src/ETL/coletores/run-coleta-contratacoes.sh"
 if [ ! -f "$WRAPPER" ]; then
   echo "Erro: coletor não encontrado em '$WRAPPER'. Confira COLETOR_CONTRATACOES_DIR." >&2
+  exit 2
+fi
+
+# Python do filtro do DF: o do .venv da raiz, se existir; senão, o do sistema.
+# O filtro usa só a biblioteca padrão. Cada candidato é executado antes de ser
+# aceito, porque um python3 no PATH pode não funcionar (o atalho da Microsoft
+# Store, um .venv quebrado ou, no WSL, um .exe sem interop).
+PYTHON=""
+for candidato in .venv/Scripts/python.exe .venv/bin/python python3 python; do
+  if "$candidato" -c 'import sys; sys.exit(sys.version_info < (3, 10))' >/dev/null 2>&1; then
+    PYTHON="$candidato"
+    break
+  fi
+done
+if [ -z "$PYTHON" ]; then
+  echo "Erro: Python 3.10 ou superior não encontrado (nem no .venv da raiz, nem python3/python no PATH)." >&2
   exit 2
 fi
 
@@ -136,7 +156,7 @@ fi
 } | tee "$LOG_FILE"
 
 
-# : COLETA E DESCOMPACTAÇÃO ----------------------------------------------------
+# : COLETA, DESCOMPACTAÇÃO E FILTRO DO DF --------------------------------------
 
 # Descompacta o .jsonl.gz ao lado dele, passando por um .part para não deixar um
 # .jsonl pela metade. O .gz fica: é o arquivo publicado, com o SHA-256 do log.
@@ -166,6 +186,20 @@ for ano in "${ANOS[@]}"; do
   if [ "$CODIGO" -eq 0 ]; then
     descompacta "$ARQUIVO" 2>&1 | tee -a "$LOG_FILE"
     [ "${PIPESTATUS[0]}" -eq 0 ] || CODIGO=1
+  fi
+  # Nos dois passos em Python, um código fora dos documentados (Ctrl-C, um Python
+  # que quebra no meio: 130, 49...) vira 1.
+  DF="${ARQUIVO%.jsonl.gz}_df.jsonl"
+  if [ "$CODIGO" -eq 0 ]; then
+    "$PYTHON" "${TASK_DIR}/src/filtra_df.py" "${ARQUIVO%.gz}" "$DF" 2>&1 | tee -a "$LOG_FILE"
+    CODIGO=${PIPESTATUS[0]}
+    [ "$CODIGO" -le 2 ] || CODIGO=1
+  fi
+  # A mesma seleção do DF em lista JSON formatada, para ler no editor.
+  if [ "$CODIGO" -eq 0 ]; then
+    "$PYTHON" "${TASK_DIR}/src/jsonl_para_json.py" "$DF" "${DF%.jsonl}.json" 2>&1 | tee -a "$LOG_FILE"
+    CODIGO=${PIPESTATUS[0]}
+    [ "$CODIGO" -le 2 ] || CODIGO=1
   fi
   set -e
 
