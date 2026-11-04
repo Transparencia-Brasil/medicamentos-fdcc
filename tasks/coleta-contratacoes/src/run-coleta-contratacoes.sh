@@ -1,18 +1,19 @@
 #!/usr/bin/env bash
-# Executa o coletor de contratações OCDS do Compras.gov.br (repositório
-# coletor-contratacoes) e salva as saídas em tasks/coleta-contratacoes/outputs/.
+# Baixa os arquivos anuais de contratações do Compras.gov.br em OCDS (JSON) com o
+# coletor-contratacoes e os descompacta em tasks/coleta-contratacoes/outputs/.
 #
 # Uso (de qualquer pasta, no Git Bash ou no WSL):
+#   bash tasks/coleta-contratacoes/src/run-coleta-contratacoes.sh --anos 2026
 #   bash tasks/coleta-contratacoes/src/run-coleta-contratacoes.sh --anos 2025 2026
-#   bash tasks/coleta-contratacoes/src/run-coleta-contratacoes.sh --anos 2026 --esferas Distrital
-#   bash tasks/coleta-contratacoes/src/run-coleta-contratacoes.sh --anos 2026 --limite 5000
 #
 # O caminho do coletor vem de COLETOR_CONTRATACOES_DIR, no ambiente ou no .env
-# da raiz (o ambiente tem precedência). A validação dos valores fica no coletor.
+# da raiz (o ambiente tem precedência). O coletor é chamado uma vez por ano; um
+# ano com falha não interrompe os demais.
 #
-# Códigos de saída: os do coletor (0 sucesso; 1 algum ano falhou; 2 argumento
-# inválido ou destino ocupado) e 2 quando o coletor não é encontrado ou um
-# argumento não é aceito por este script.
+# Códigos de saída: 0 quando todos os anos foram baixados e descompactados; se
+# algum falhou, o maior código entre os anos (1 falha de rede, integridade ou
+# descompactação; 2 ano não publicado ou destino já existente); 2 também quando
+# o coletor não é encontrado ou um argumento é inválido.
 
 set -euo pipefail
 
@@ -23,6 +24,24 @@ set -euo pipefail
 cd "$(dirname "$0")/../../.." || { echo "Erro: não foi possível acessar a raiz do projeto." >&2; exit 1; }
 RAIZ="$(pwd)"
 TASK_DIR="tasks/coleta-contratacoes"
+
+uso() {
+  cat <<'USO'
+Uso: bash tasks/coleta-contratacoes/src/run-coleta-contratacoes.sh [--anos ANO ...]
+
+Baixa os arquivos anuais da publicação 157 (Compras.gov.br, OCDS em JSON) com o
+coletor-contratacoes e os descompacta em tasks/coleta-contratacoes/outputs/{ano}/.
+
+  --anos ANO ...   Um ou mais anos, com quatro dígitos. Padrão: o ano atual.
+USO
+}
+
+# --help funciona mesmo sem o coletor configurado.
+for argumento in "$@"; do
+  case "$argumento" in
+    -h|--help) uso; exit 0 ;;
+  esac
+done
 
 
 # : COLETOR --------------------------------------------------------------------
@@ -54,36 +73,26 @@ fi
 
 # : ARGUMENTOS -----------------------------------------------------------------
 
-# Só as opções do recorte são aceitas. O destino é definido por esta task, por
-# isso --saida não é aceito. --anos e --esferas recebem um ou mais valores, até
-# a próxima opção.
+# --anos recebe um ou mais valores, até a próxima opção. O destino é definido por
+# esta task, por isso --saida não é aceito.
 ANOS=()
-ESFERAS=()
-UF="DF"
-LIMITE=""
 while [ $# -gt 0 ]; do
   case "$1" in
-    -h|--help)
-      exec bash "$WRAPPER" --help
-      ;;
-    --anos|--esferas)
-      opcao="$1"
+    --anos)
       shift
+      valores=0
       while [ $# -gt 0 ] && [[ "$1" != --* ]]; do
-        if [ "$opcao" = "--anos" ]; then ANOS+=("$1"); else ESFERAS+=("$1"); fi
+        ANOS+=("$1")
         shift
+        valores=$((valores + 1))
       done
-      ;;
-    --uf|--limite)
-      if [ $# -lt 2 ]; then
-        echo "Erro: $1 exige um valor." >&2
+      if [ "$valores" -eq 0 ]; then
+        echo "Erro: --anos exige ao menos um valor." >&2
         exit 2
       fi
-      if [ "$1" = "--uf" ]; then UF="$2"; else LIMITE="$2"; fi
-      shift 2
       ;;
     *)
-      echo "Erro: argumento não aceito: '$1'. Use --anos, --uf, --esferas e --limite." >&2
+      echo "Erro: argumento não aceito: '$1'. Use --anos." >&2
       exit 2
       ;;
   esac
@@ -92,30 +101,23 @@ done
 # Sem --anos, coleta o ano atual, como o coletor.
 [ ${#ANOS[@]} -eq 0 ] && ANOS=("$(date +%Y)")
 
-ARGS=(--anos "${ANOS[@]}" --uf "$UF")
-[ ${#ESFERAS[@]} -gt 0 ] && ARGS+=(--esferas "${ESFERAS[@]}")
-[ -n "$LIMITE" ] && ARGS+=(--limite "$LIMITE")
-
-# Alias da pasta de saída, igual ao padrão do coletor: UF, esferas e anos
-# ordenados, separados por "-" (espaços viram "_").
-mapfile -t ANOS_ORDENADOS < <(printf '%s\n' "${ANOS[@]}" | sort -n -u)
-PARTES=("${UF^^}")
-if [ ${#ESFERAS[@]} -gt 0 ]; then
-  mapfile -t ESFERAS_ORDENADAS < <(printf '%s\n' "${ESFERAS[@]}" | LC_ALL=C sort -u)
-  PARTES+=("${ESFERAS_ORDENADAS[@]}")
-fi
-PARTES+=("${ANOS_ORDENADOS[@]}")
-ALIAS="$(IFS=-; echo "${PARTES[*]}")"
-ALIAS="${ALIAS// /_}"
+# O ano entra no caminho de saída antes de chegar ao coletor, então é validado
+# aqui com a mesma regra dele: quatro dígitos ASCII.
+for ano in "${ANOS[@]}"; do
+  if [[ ! "$ano" =~ ^[0-9]{4}$ ]]; then
+    echo "Erro: ano inválido: '$ano'. Use quatro dígitos, como 2026." >&2
+    exit 2
+  fi
+done
+mapfile -t ANOS < <(printf '%s\n' "${ANOS[@]}" | sort -n -u)
 
 
-# : SAÍDA E LOG ----------------------------------------------------------------
+# : LOG ------------------------------------------------------------------------
 
 AGORA="$(date +%Y%m%d_%H%M%S)"
-# Caminho relativo à raiz: funciona também com o Python do Windows chamado pelo WSL.
-DESTINO="${TASK_DIR}/outputs/${ALIAS}/${AGORA}"
+ROTULO="$(IFS=-; echo "${ANOS[*]}")"
 LOG_DIR="${TASK_DIR}/outputs/LOGS"
-LOG_FILE="${LOG_DIR}/run-coleta-contratacoes-${ALIAS}-${AGORA}.log"
+LOG_FILE="${LOG_DIR}/run-coleta-contratacoes-${ROTULO}-${AGORA}.log"
 mkdir -p "$LOG_DIR"
 
 COMMIT="$(git -C "$COLETOR_CONTRATACOES_DIR" rev-parse --short HEAD 2>/dev/null || echo "desconhecido")"
@@ -129,23 +131,51 @@ fi
   echo "INÍCIO: $(date +"%d-%b-%Y %H:%M:%S")"
   echo "Coletor: $COLETOR_CONTRATACOES_DIR"
   echo "Commit do coletor: $COMMIT"
-  echo "Argumentos: ${ARGS[*]}"
-  echo "Destino: $DESTINO"
+  echo "Anos: ${ANOS[*]}"
   echo "Log: $LOG_FILE"
-  echo ""
 } | tee "$LOG_FILE"
 
 
-# : RODAR COLETOR --------------------------------------------------------------
+# : COLETA E DESCOMPACTAÇÃO ----------------------------------------------------
 
-set +e
-bash "$WRAPPER" "${ARGS[@]}" --saida "$DESTINO" 2>&1 | tee -a "$LOG_FILE"
-CODIGO=${PIPESTATUS[0]}
-set -e
+# Descompacta o .jsonl.gz ao lado dele, passando por um .part para não deixar um
+# .jsonl pela metade. O .gz fica: é o arquivo publicado, com o SHA-256 do log.
+descompacta() {
+  local gz="$1" jsonl="${1%.gz}"
+  if gzip -dc "$gz" > "$jsonl.part" && mv "$jsonl.part" "$jsonl"; then
+    echo "Descompactado em $jsonl ($(wc -c < "$jsonl") bytes)"
+  else
+    rm -f "$jsonl.part"
+    echo "Erro: falha ao descompactar $gz" >&2
+    return 1
+  fi
+}
+
+CODIGO_FINAL=0
+for ano in "${ANOS[@]}"; do
+  # Caminho relativo à raiz: funciona também com o Python do Windows chamado pelo WSL.
+  ARQUIVO="${TASK_DIR}/outputs/${ano}/$(date +%Y%m%d_%H%M%S)_contratacoes_${ano}.jsonl.gz"
+  {
+    echo ""
+    echo "--- Ano $ano: $ARQUIVO"
+  } | tee -a "$LOG_FILE"
+
+  set +e
+  bash "$WRAPPER" --ano "$ano" --saida "$ARQUIVO" 2>&1 | tee -a "$LOG_FILE"
+  CODIGO=${PIPESTATUS[0]}
+  if [ "$CODIGO" -eq 0 ]; then
+    descompacta "$ARQUIVO" 2>&1 | tee -a "$LOG_FILE"
+    [ "${PIPESTATUS[0]}" -eq 0 ] || CODIGO=1
+  fi
+  set -e
+
+  echo "Ano $ano: código $CODIGO" | tee -a "$LOG_FILE"
+  if [ "$CODIGO" -gt "$CODIGO_FINAL" ]; then CODIGO_FINAL=$CODIGO; fi
+done
 
 {
   echo ""
-  echo "FIM: $(date +"%d-%b-%Y %H:%M:%S") (código de saída $CODIGO)"
+  echo "FIM: $(date +"%d-%b-%Y %H:%M:%S") (código de saída $CODIGO_FINAL)"
 } | tee -a "$LOG_FILE"
 
-exit "$CODIGO"
+exit "$CODIGO_FINAL"
