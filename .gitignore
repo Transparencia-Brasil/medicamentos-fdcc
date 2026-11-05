@@ -72,3 +72,7 @@ vignettes/*.pdf
 # Coletor de contratações: saídas e logs
 /tasks/coleta-contratacoes/outputs/*
 !/tasks/coleta-contratacoes/outputs/.gitkeep
+
+# Bytecode do Python, em qualquer pasta
+__pycache__/
+*.pyc
